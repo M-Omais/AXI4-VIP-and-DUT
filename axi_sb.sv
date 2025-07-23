@@ -8,15 +8,20 @@ class axi_sb extends uvm_scoreboard;
 	// Analysis implementation ports
 	uvm_analysis_imp_expected#(tx_item, axi_sb) in_port;
 	uvm_analysis_imp_actual#(tx_item, axi_sb)   out_port;
-	
+	localparam int data_width = 1024;
+	localparam int addr_width = $clog2(32 * data_width);
+	localparam int aligned_mem = data_width / 8;
+	localparam int memDepth = 1 << addr_width;
 	// Variables 
-	logic [7:0] expected_data [0:127];
-	logic [7:0] actual_data [0:127];
+	reg [7:0] expected_data [0 : (1 << addr_width)];
+	reg [7:0] actual_data [0 : (1 << addr_width)];
 	int match, mis_match;
 
 	// Constructor: create imp ports and initialize stats
 	function new(string name, uvm_component parent);
 		super.new(name, parent);
+		match = 0;
+		mis_match = 0;
 	endfunction
 
 	// Build phase: nothing additional needed
@@ -30,87 +35,155 @@ class axi_sb extends uvm_scoreboard;
 
 	// Collect expected transactions
 	virtual function void write_expected(tx_item tr);
-		logic [4:0] addr = tr.AWADDR;
-		int total_bytes = (tr.AWLEN + 1) * (1 << tr.AWSIZE);
-		logic [4:0] wwr_l = tr.AWADDR & ~(total_bytes - 1);
-		logic [4:0] wwr_h = wwr_l + total_bytes - 1;
-		for (int i = 0; i <= tr.AWLEN; i++) begin
-			case (tr.AWSIZE)
-				3'b000: begin // 1 byte
-					expected_data[addr] = tr.WDATA[i][7:0];
+		logic [addr_width-1:0] addr = tr.AWADDR;
+		logic [7:0] len = tr.AWLEN;
+		int wbpt = (1 << tr.AWSIZE);
+		int total_bytes = (len + 1) * wbpt;
+		logic [addr_width-1:0] wwr_l = addr & ~(total_bytes - 1);
+		int offset = addr & (wbpt - 1);
+		logic [addr_width-1:0] wwr_h = wwr_l + total_bytes - 1;
+		bit resp = 0;
+		// `uvm_info("WRITE_EXPECTED", $sformatf("wbpt = %0d, offset = %0d", wbpt, offset), UVM_LOW)
+		for (int i = 0; i <= len; i++) begin
+			if(resp) begin
+				`uvm_error("ERROR DETECTED","LEAVING WRITE")
+				break;
+			end
+			for (int j = 0; j < aligned_mem - offset; j++) begin
+				if (j < wbpt) begin
+					expected_data[addr + j] = tr.WDATA[i][(8*j) +: 8];
 				end
-				3'b001: begin // 2 bytes
-					expected_data[addr]     = tr.WDATA[i][7:0];
-					expected_data[addr + 1] = tr.WDATA[i][15:8];
+
+			end
+			if ((addr + ((len + 1) << tr.AWSIZE) - 1) >= memDepth) begin
+				`uvm_warning("WRITE_EXPECTED", "Write out of bounds")
+				resp = 1;
+			end
+			case (tr.AWBURST)
+				2'b00: begin // FIXED
+					if (len > 16) begin
+						`uvm_warning("WRITE_EXPECTED", "AWLEN > 16 not supported")
+						resp = 1;
+					end
 				end
-				3'b010: begin // 4 bytes
-					expected_data[addr]     = tr.WDATA[i][7:0];
-					expected_data[addr + 1] = tr.WDATA[i][15:8];
-					expected_data[addr + 2] = tr.WDATA[i][23:16];
-					expected_data[addr + 3] = tr.WDATA[i][31:24];
+
+				2'b01: begin // INCR
+					if (addr % wbpt) begin
+						addr = (addr & ~(aligned_mem - 1)) + aligned_mem;
+						offset = 0;
+					end
+					else	addr = addr + wbpt;
 				end
+
+				2'b10: begin // WRAP
+					if (!(len == 2 || len == 4 || len == 8 || len == 16)) begin
+						`uvm_warning("WRITE_EXPECTED", "Unsupported AWLEN for WRAP")
+						resp = 1;
+					end
+					if (addr % wbpt) begin
+						addr = (addr & ~(aligned_mem - 1)) + aligned_mem;
+						offset = 0;
+						`uvm_warning("WRITE_EXPECTED", "Misaligned address in WRAP burst")
+						resp = 1;
+					end
+					else if ((addr + wbpt) <= wwr_h) begin
+						addr = addr + wbpt;
+					end else begin
+
+						addr = wwr_l;
+					end
+				end
+
 				default: begin
-					// handle error or unsupported size
+					`uvm_warning("WRITE_EXPECTED", "Unsupported AWBURST")
+					resp = 1;
 				end
 			endcase
 
-			case (tr.AWBURST)
-				2'b00: ; // FIXED: do nothing
-				2'b01: addr = addr + (1 << tr.AWSIZE); // INCR
-				2'b10: begin // WRAP
-					if ((addr + (1 << tr.AWSIZE)) <= wwr_h)
-						addr = addr + (1 << tr.AWSIZE);
-					else
-						addr = wwr_l;
-				end
-				default: `uvm_error("WRITE_EXPECTED", "Unsupported AWBURST")
-			endcase
+			
+
+			// offset = 0;
 		end
 	endfunction
 
 	// Collect and compare actual transactions
 	virtual function void write_actual(tx_item tr);
-		logic [4:0] addr = tr.ARADDR;
-
-		// Calculate total bytes and wrap bounds based on AR*
-		int total_bytes = (tr.ARLEN + 1) * (1 << tr.ARSIZE);
-		int wwr_l = tr.ARADDR & ~(total_bytes - 1);  // wrap lower bound
-		int wwr_h = wwr_l + total_bytes - 1;         // wrap upper bound
-
-		for (int i = 0; i <= tr.ARLEN; i++) begin
-			logic [31:0] expected_word;
-
-			// Build expected_word from expected_data[] based on ARSIZE
-			case (tr.ARSIZE)
-				3'b000: expected_word = {24'd0, expected_data[addr]};
-				3'b001: expected_word = {16'd0, expected_data[addr + 1], expected_data[addr]};
-				3'b010: expected_word = {expected_data[addr + 3], expected_data[addr + 2], expected_data[addr + 1], expected_data[addr]};
-				default: expected_word = 32'hDEAD_BEEF; // Invalid ARSIZE
-			endcase
-
-			// Compare expected vs actual
-			if (expected_word === tr.RDATA[i]) begin
-				`uvm_info("MATCH", "MATCHED", UVM_MEDIUM)
-				match++;
-			end else begin
-				`uvm_error("UNMATCH", $sformatf("Expected[%0h] = %h,\t Actual = %h", addr, expected_word, tr.RDATA[i]))
-				mis_match++;
+		logic [addr_width-1:0] addr = tr.ARADDR;
+		int wbpt = (1 << tr.ARSIZE);
+		logic [7:0] len = tr.ARLEN;
+		int total_bytes = (len + 1) * wbpt;
+		int wwr_l = tr.ARADDR & ~(total_bytes - 1);
+		int wwr_h = wwr_l + total_bytes - 1;
+		int offset = addr & (wbpt - 1);
+		bit resp =0;
+		for (int i = 0; i <= len; i++) begin
+			logic [data_width-1:0] expected_word = '0;
+			if(resp) begin
+				`uvm_error("ERROR DETECTED","LEAVING READ")
+				break;
+			end
+			for (int j = 0; j < aligned_mem; j++) begin
+				if(j < wbpt) begin
+					if (j < aligned_mem - offset)	expected_word[(8 * j) +: 8] = expected_data[addr + j];
+					else expected_word[(8 * j) +: 8] = 8'bx;
+				end
+				// `uvm_info("J_VALUE", $sformatf("j = %0d, offset = %0d", j, offset), UVM_LOW)
 			end
 
-			// Update address based on ARBURST
+			if (expected_word === tr.RDATA[i]) begin
+				`uvm_info("MATCH", "MATCHED", UVM_MEDIUM)
+				// `uvm_info("MATCH", $sformatf("Expected[%0h] = %h,\t Actual = %h,\t Size = %0d", addr, expected_word, tr.RDATA[i], wbpt), UVM_LOW)
+
+				match++;
+			end else begin
+				`uvm_error("UNMATCH", $sformatf("i = %0d, Expected[%0h] = %h,\t Actual = %h,\t Size = %0d", i, addr, expected_word, tr.RDATA[i], wbpt))
+				mis_match++;
+				// `uvm_info("WRITE_EXPECTED", $sformatf("WRAP burst: addr=%0d, wbpt=%0d, wwr_h=%0d, updating addr to %0d", addr, wbpt, wwr_h, addr + wbpt), UVM_LOW)
+			end
+
 			case (tr.ARBURST)
-				2'b00: ; // FIXED
-				2'b01: addr = addr + (1 << tr.ARSIZE); // INCR
-				2'b10: begin // WRAP
-					if ((addr + (1 << tr.ARSIZE)) <= wwr_h)
-						addr = addr + (1 << tr.ARSIZE);
-					else
-						addr = wwr_l;
+
+				2'b00: begin // FIXED
+					// No address update for FIXED burst
+					if (len > 16) begin
+						`uvm_warning("WRITE_ACTUAL", "ARLEN > 16 not supported")
+						resp = 1;
+					end
 				end
-				default: `uvm_error("WRITE_ACTUAL", "Unsupported ARBURST")
+
+				2'b01: begin // INCR
+					if (addr % wbpt) begin
+						addr = (addr & ~(aligned_mem - 1)) + aligned_mem;
+						offset = 0;
+					end
+					else addr = addr + wbpt;
+				end
+
+				2'b10: begin // WRAP
+					if (!(len == 2 || len == 4 || len == 8 || len == 16)) begin
+						`uvm_warning("WRITE_ACTUAL", "Unsupported ARLEN for WRAP")
+						resp = 1;
+					end
+					if (addr % wbpt) begin
+						addr = (addr & ~(aligned_mem - 1)) + aligned_mem;
+						offset = 0;
+						`uvm_warning("WRITE_ACTUAL", "Misaligned address in WRAP burst")
+						resp = 1;
+					end else if ((addr + wbpt) <= wwr_h) begin
+						addr = addr + wbpt;
+					end else begin
+						addr = wwr_l;
+					end
+				end
+
+				default: begin
+					`uvm_warning("WRITE_ACTUAL", "Unsupported ARBURST")
+					resp = 1;
+				end
 			endcase
 		end
 	endfunction
+
 
 
 

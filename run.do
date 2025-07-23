@@ -1,14 +1,16 @@
 # Clean previous work files
-#exec cmd /c del /Q w*
+exec cmd /c del /Q w*
+
 
 # Compile design files
 vlog -sv AXI4.sv axi_if.sv
+cls
 vlog tx_pkg.sv Top.sv +define+UVM_REPORT_DISABLE_FILE_LINE 
 
 # Launch simulation
-vsim -classdebug -uvmcontrol=all work.top +UVM_VERBOSITY=UVM_LOW +UVM_TESTNAME=read_after_write_i_test \
+vsim -classdebug -uvmcontrol=all work.top -sv_seed random +UVM_VERBOSITY=UVM_LOW +UVM_TESTNAME=all_burst_seq_test \
      +UVM_NO_RELNOTES  +UVM_NO_MSG=PHASESEQ +UVM_NO_MSG=PH_READY_TO_END 
-#-sv_seed random
+#
 add wave -position insertpoint \
     sim:/top/axi_i/AW* \
     sim:/top/axi_i/W*  \

@@ -10,10 +10,10 @@ module top;
 		clk = 0;
 		forever #5 clk = ~clk;
 	end
-
+	int data_width = 32;
 	// Instantiate interface
 		axi_if axi_i(clk, rst_n);
-		AXI4 bram(.ACLK(clk),
+		AXI4 #(.DATA_WIDTH(1024)) bram (.ACLK(clk),
 								.ARESET(rst_n),
 								.ARADDR(axi_i.ARADDR),
 								.ARBURST(axi_i.ARBURST),
@@ -56,7 +56,8 @@ module top;
 		// Pass virtual interface to UVM testbench
 		uvm_config_db#(virtual axi_if)::set(null, "uvm_test_top.env.agt.*", "vif", axi_i);
 		// Run the test
-		
+		uvm_config_db#(int)            ::set(null, "", "recording_detail", 0);
+		uvm_config_db#(uvm_bitstream_t)::set(null, "", "recording_detail", 0);
 		run_test("i_write_5");
 	end
 

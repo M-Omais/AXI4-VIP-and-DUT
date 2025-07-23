@@ -1,5 +1,5 @@
 <certe_dump>
-  <instance type=" read_after_write_i_test "> 
+  <instance type=" all_burst_seq_test "> 
      uvm_test_top 
   
      <instance type=" axi_env "> 

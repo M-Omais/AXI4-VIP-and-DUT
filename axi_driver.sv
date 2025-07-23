@@ -1,7 +1,7 @@
 class axi_driver extends uvm_driver#(tx_item);
 	`uvm_component_utils(axi_driver)
 
-	virtual axi_if vif;
+	virtual axi_if  vif;
 
 	function new(string name, uvm_component parent);
 		super.new(name, parent);
@@ -28,7 +28,6 @@ class axi_driver extends uvm_driver#(tx_item);
 		@(negedge vif.clk);
 		// Sending Address
 		vif.ARADDR <= tr.ARADDR;
-		vif.ARID <= tr.ARID;
 		vif.ARBURST <= tr.ARBURST;
 		vif.ARSIZE <= tr.ARSIZE;
 		vif.ARLEN <= tr.ARLEN;
@@ -51,7 +50,6 @@ class axi_driver extends uvm_driver#(tx_item);
 
 		@(negedge vif.clk);
 		@(negedge vif.clk);
-		// vif.AWID <= tr.AWID;
 		vif.AWADDR <= tr.AWADDR;
 		vif.AWBURST <= tr.AWBURST;
 		vif.AWSIZE <= tr.AWSIZE; //right now fixed to 1 byte later will change to dynamic
@@ -64,7 +62,6 @@ class axi_driver extends uvm_driver#(tx_item);
 		for (int i = 0; i <= tr.AWLEN; i++) begin
 			@(negedge vif.clk);
 			vif.AWVALID <= 0;
-			vif.WID <= tr.WID;
 			vif.WDATA <= tr.WDATA[i];
 			vif.WLAST <= (i == tr.AWLEN);
 			vif.WVALID <= 1'b1;
