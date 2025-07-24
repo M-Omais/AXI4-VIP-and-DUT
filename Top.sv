@@ -1,7 +1,9 @@
 `timescale 1ps/1ps
 `include "uvm_macros.svh"
 import uvm_pkg::*;
+import seq_pkg::*;
 import tx_pkg::*;
+import test_pkg::*;
 module top;
 	// Clock and Reset
 	logic clk, rst_n;
