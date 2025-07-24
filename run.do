@@ -6,7 +6,7 @@ exec cmd /c del /Q w*
 vlog -f run.f +define+UVM_REPORT_DISABLE_FILE_LINE 
 
 # Launch simulation
-vsim -classdebug -uvmcontrol=all work.top -sv_seed random +UVM_VERBOSITY=UVM_LOW +UVM_TESTNAME=all_burst_seq_test \
+vsim -classdebug -uvmcontrol=all work.top -sv_seed random +UVM_VERBOSITY=UVM_LOW +UVM_TESTNAME=random_parallel_test \
      +UVM_NO_RELNOTES  +UVM_NO_MSG=PHASESEQ +UVM_NO_MSG=PH_READY_TO_END 
 #
 add wave -position insertpoint \

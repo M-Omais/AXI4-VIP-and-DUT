@@ -1,3 +1,40 @@
+//------------------------------------------------------------------------------
+// CLASS: axi_driver
+//
+// DESCRIPTION:
+//   UVM driver for AXI4 protocol. Responsible for driving transactions onto the
+//   AXI interface using the provided virtual interface. Handles both read and
+//   write transfers based on the transaction type.
+//
+// PARAMETERS:
+//   - tx_item: Transaction item type (extends uvm_sequence_item).
+//
+// MEMBERS:
+//   - vif: Virtual interface handle for AXI signals.
+//
+// METHODS:
+//   - new(string name, uvm_component parent)
+//       Constructor. Retrieves the virtual interface from the UVM config database.
+//       Fatal error if interface is not found.
+//
+//   - run_phase(uvm_phase phase)
+//       Main driver loop. Waits for reset deassertion, then repeatedly gets
+//       transactions from the sequencer and dispatches them to read or write
+//       transfer tasks.
+//
+//   - read_transfer(tx_item tr)
+//       Drives AXI read address and data handshake. Sets AR* signals, waits for
+//       ARREADY, then drives RREADY for each beat.
+//
+//   - write_transfer(tx_item tr)
+//       Drives AXI write address and data handshake. Sets AW* signals, waits for
+//       AWREADY, then drives WDATA, WVALID, WLAST, and waits for WREADY for each
+//       beat. Handles BREADY for write response.
+//
+// USAGE:
+//   Instantiate in UVM environment, connect to sequencer and AXI virtual interface.
+//
+//------------------------------------------------------------------------------
 class axi_driver extends uvm_driver#(tx_item);
 	`uvm_component_utils(axi_driver)
 

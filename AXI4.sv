@@ -1,6 +1,66 @@
+/*
+ * AXI4 SystemVerilog Module
+ * -------------------------
+ * Implements an AXI4 interface with configurable data and address widths.
+ *
+ * Parameters:
+ *   DATA_WIDTH  - Width of the data bus (default: 1024 bits)
+ *   ADDR_WIDTH  - Width of the address bus (default: $clog2(1024 * DATA_WIDTH))
+ *
+ * Ports:
+ *   Global Signals:
+ *     ACLK      - Clock signal
+ *     ARESET    - Reset signal (active low)
+ *
+ *   AXI Read Address Channel:
+ *     ARADDR    - Read address
+ *     ARBURST   - Burst type for read
+ *     ARVALID   - Read address valid
+ *     ARREADY   - Read address ready
+ *     ARLEN     - Burst length for read
+ *     ARSIZE    - Burst size for read
+ *
+ *   AXI Read Data Channel:
+ *     RDATA     - Read data
+ *     RLAST     - Last read data in burst
+ *     RVALID    - Read data valid
+ *     RREADY    - Read data ready
+ *     RRESP     - Read response
+ *
+ *   AXI Write Address Channel:
+ *     AWADDR    - Write address
+ *     AWBURST   - Burst type for write
+ *     AWVALID   - Write address valid
+ *     AWREADY   - Write address ready
+ *     AWLEN     - Burst length for write
+ *     AWSIZE    - Burst size for write
+ *
+ *   AXI Write Data Channel:
+ *     WDATA     - Write data
+ *     WLAST     - Last write data in burst
+ *     WVALID    - Write data valid
+ *     WREADY    - Write data ready
+ *
+ *   AXI Write Response Channel:
+ *     BRESP     - Write response
+ *     BVALID    - Write response valid
+ *     BREADY    - Write response ready
+ *
+ * Internal Logic:
+ *   - Implements AXI4 burst types: FIXED, INCR, WRAP
+ *   - Handles address alignment, burst length, and size
+ *   - Implements write and read state machines
+ *   - Uses a BRAM array for memory storage
+ *   - Generates appropriate AXI4 responses for error conditions
+ *
+ * Notes:
+ *   - Supports large data widths and address spaces
+ *   - Handles burst boundary and alignment checks
+ *   - Implements AXI4 protocol handshaking and response signaling
+ */
 module AXI4 #(
 	parameter int DATA_WIDTH = 1024,
-	parameter int ADDR_WIDTH = $clog2(32 * (DATA_WIDTH))
+	parameter int ADDR_WIDTH = $clog2(1024 * (DATA_WIDTH))
 )(
 	// Global Signals
 	input  logic                 ACLK,
@@ -92,7 +152,14 @@ module AXI4 #(
 					if ((waddr + ((wlen + 1) << wsize) - 1) >= memDepth)	wresp <= 2'b1;
 					case (wburst)
 						2'b00: begin
-							if (wlen > 16) wresp <= 2'b1;
+							if (wlen > 15) begin
+								wlen <= 14;
+								// $display("---------");
+							end
+							else begin
+								if(!wlen)wresp <= 2'b01;
+								else wlen <= wlen - 1;
+							end
 						end
 						2'b01: begin
 							if(waddr % wbpt) begin
@@ -113,14 +180,15 @@ module AXI4 #(
 						end
 						default: wresp <= 2'b1;
 					endcase
-					if(wresp) $display("sdkljf");
+					// $write("%h",wlen);
 					if(!wresp && (waddr + wbpt < memDepth) )begin
 						for (int i = 0; i < aligned_mem - woffset; i++) begin
 							if(i == wbpt) break;
 							BRAM[waddr + i] <= WDATA[(8 * i) +: 8];
 						end
-						
 					end
+										// if(wresp) $display("sldkfjsldkfj");
+
 				end
 				if (WLAST) begin
 					btime <= 1'b1;
@@ -202,7 +270,6 @@ module AXI4 #(
 					endcase
 					rlen <= rlen - 1;
 					RDATA = 'b0;
-					if(rresp) $display("sldkfjsldkfj");
 					// if (!rresp && (raddr + rbpt < memDepth)) begin
 						
 					for (int i = 0; i < aligned_mem; i++) begin

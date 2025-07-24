@@ -1,6 +1,6 @@
 interface axi_if#(
     parameter int DATA_WIDTH = 1024,
-    parameter int ADDR_WIDTH = $clog2(32 * (DATA_WIDTH))
+    parameter int ADDR_WIDTH = $clog2(1024 * (DATA_WIDTH))
 )	(input logic clk, input logic rst_n);
 
     // AXI Read Address Channel

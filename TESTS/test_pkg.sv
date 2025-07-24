@@ -9,4 +9,5 @@ package test_pkg;
     `include "fixed_burst_test.sv"
     `include "incr_burst_test.sv"
     `include "warp_burst_test.sv"
+    `include "random_parallel_test.sv"
 endpackage

@@ -1,5 +1,5 @@
 <certe_dump>
-  <instance type=" all_burst_seq_test "> 
+  <instance type=" random_parallel_test "> 
      uvm_test_top 
   
      <instance type=" axi_env "> 

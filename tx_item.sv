@@ -3,7 +3,7 @@ class tx_item extends uvm_sequence_item;
 
 	`uvm_object_utils(tx_item)
 	localparam int data_width = 1024;
-	localparam int addr_width = $clog2(32 * data_width);
+	localparam int addr_width = $clog2(1024 * data_width);
 	rand transfer_type transfer;
 	// Read Address Channel
 	rand logic [addr_width:0] ARADDR;

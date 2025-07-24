@@ -1,3 +1,30 @@
+//------------------------------------------------------------------------------
+// CLASS: axi_monitor
+//
+// DESCRIPTION:
+//   UVM monitor for AXI4 interface transactions. Captures write and read
+//   operations from the DUT via a virtual interface and publishes transaction
+//   items to analysis ports.
+//
+// PARAMETERS:
+//   - vif: virtual interface handle to AXI4 signals.
+//
+// ANALYSIS PORTS:
+//   - dut_write: publishes write transaction items (tx_item).
+//   - dut_read: publishes read transaction items (tx_item).
+//
+// METHODS:
+//   - new(name, parent): Constructor.
+//   - build_phase(phase): Initializes analysis ports and retrieves virtual interface.
+//   - run_phase(phase): Forks write and read transfer monitoring tasks.
+//   - write_transfer(): Monitors AXI4 write channel (AW, W, B) and collects data.
+//   - read_transfer(): Monitors AXI4 read channel (AR, R) and collects data.
+//
+// USAGE:
+//   Instantiate in UVM environment, connect to AXI4 interface, and configure
+//   analysis ports for scoreboard or coverage collection.
+//
+//------------------------------------------------------------------------------
 class axi_monitor extends uvm_monitor;
     `uvm_component_utils(axi_monitor)
 	

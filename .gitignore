@@ -1,0 +1,14 @@
+# Ignore everything
+*
+
+# But not these file types
+!*.v
+!*.sv
+!*.do
+!*.f
+
+# Include specific folders and their contents
+!SEQS/
+!SEQS/**
+!TESTS/
+!TESTS/**
